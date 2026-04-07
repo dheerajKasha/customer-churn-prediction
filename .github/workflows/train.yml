@@ -1,0 +1,54 @@
+name: Train - Trigger SageMaker Pipeline
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'src/**'
+      - 'pipeline/**'
+
+jobs:
+  train:
+    name: Run Model Training Pipeline
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write      # Required for OIDC
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Run Unit Tests
+        run: |
+          pytest tests/ -v
+
+      - name: Upload Source Code to S3
+        run: |
+          aws s3 sync src/ s3://${{ secrets.S3_BUCKET_NAME }}/code/src/
+          aws s3 sync pipeline/ s3://${{ secrets.S3_BUCKET_NAME }}/code/pipeline/
+
+      - name: Trigger SageMaker Pipeline
+        run: |
+          python pipeline/run_pipeline.py
+        env:
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          SAGEMAKER_ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+          PIPELINE_NAME: churnguard-training-pipeline

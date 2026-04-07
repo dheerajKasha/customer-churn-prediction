@@ -1,0 +1,78 @@
+name: Deploy - Promote Model to Endpoint
+
+on:
+  workflow_dispatch:
+    inputs:
+      model_package_arn:
+        description: 'SageMaker Model Package ARN to deploy'
+        required: true
+        type: string
+      environment:
+        description: 'Target environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+jobs:
+  deploy:
+    name: Deploy Approved Model
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    environment: ${{ github.event.inputs.environment }}  # Requires manual approval in GitHub
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Approve Model in SageMaker Registry
+        run: |
+          python pipeline/approve_model.py \
+            --model-package-arn "${{ github.event.inputs.model_package_arn }}"
+
+      - name: Deploy Model to SageMaker Endpoint
+        run: |
+          python pipeline/deploy_model.py \
+            --model-package-arn "${{ github.event.inputs.model_package_arn }}" \
+            --environment "${{ github.event.inputs.environment }}"
+        env:
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          SAGEMAKER_ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+          ENDPOINT_NAME: churnguard-endpoint-${{ github.event.inputs.environment }}
+
+      - name: Notify Deployment Success
+        if: success()
+        run: |
+          aws sns publish \
+            --topic-arn ${{ secrets.SNS_TOPIC_ARN }} \
+            --message "ChurnGuard model successfully deployed to ${{ github.event.inputs.environment }} endpoint." \
+            --subject "ChurnGuard Deployment Success"
+
+      - name: Notify Deployment Failure
+        if: failure()
+        run: |
+          aws sns publish \
+            --topic-arn ${{ secrets.SNS_TOPIC_ARN }} \
+            --message "ChurnGuard deployment to ${{ github.event.inputs.environment }} FAILED. Check GitHub Actions logs." \
+            --subject "ChurnGuard Deployment Failed"

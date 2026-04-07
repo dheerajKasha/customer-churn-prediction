@@ -1,0 +1,63 @@
+name: Scheduled - Daily Retraining Check
+
+on:
+  schedule:
+    - cron: '0 6 * * *'    # Runs every day at 6:00 AM UTC
+  workflow_dispatch:        # Also allows manual trigger
+
+jobs:
+  check-and-retrain:
+    name: Check for New Data and Retrain
+    runs-on: ubuntu-latest
+
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Dependencies
+        run: |
+          pip install -r requirements.txt
+
+      - name: Configure AWS Credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v2
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_ROLE_ARN }}
+          aws-region: us-east-1
+
+      - name: Check for New Data in S3
+        id: check_data
+        run: |
+          python pipeline/check_new_data.py
+        env:
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+
+      - name: Trigger SageMaker Pipeline if New Data Found
+        if: steps.check_data.outputs.new_data_found == 'true'
+        run: |
+          python pipeline/run_pipeline.py
+        env:
+          S3_BUCKET_NAME: ${{ secrets.S3_BUCKET_NAME }}
+          SAGEMAKER_ROLE_ARN: ${{ secrets.SAGEMAKER_ROLE_ARN }}
+          PIPELINE_NAME: churnguard-training-pipeline
+
+      - name: Skip - No New Data
+        if: steps.check_data.outputs.new_data_found == 'false'
+        run: |
+          echo "No new data found. Skipping retraining."
+
+      - name: Notify on Failure
+        if: failure()
+        run: |
+          aws sns publish \
+            --topic-arn ${{ secrets.SNS_TOPIC_ARN }} \
+            --message "ChurnGuard scheduled retraining job FAILED. Check GitHub Actions logs." \
+            --subject "ChurnGuard Scheduled Job Failed"
