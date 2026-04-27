@@ -1,0 +1,639 @@
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans, sans-serif); color: var(--color-text-primary); }
+
+.tabs { display: flex; flex-wrap: wrap; gap: 0; border-bottom: 1px solid var(--color-border-tertiary); }
+.tab {
+  padding: 9px 16px; font-size: 12px; font-weight: 500; cursor: pointer;
+  border: none; background: none; color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all 0.15s; white-space: nowrap;
+}
+.tab.active { color: var(--color-text-primary); border-bottom-color: var(--color-text-primary); }
+.tab:hover:not(.active) { color: var(--color-text-primary); }
+
+.panel { display: none; padding: 20px 0; }
+.panel.active { display: block; }
+
+.lbl { font-size: 11px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--color-text-secondary); margin-bottom: 10px; }
+
+.info-bar {
+  border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg);
+  padding: 12px 16px; background: var(--color-background-secondary);
+  font-size: 12px; color: var(--color-text-secondary); margin-bottom: 20px; line-height: 1.6;
+}
+.info-bar strong { color: var(--color-text-primary); font-weight: 500; }
+
+/* ── flow diagram ── */
+.flow-wrap { overflow-x: auto; margin-bottom: 20px; }
+.flow {
+  display: flex; align-items: center; gap: 0; padding: 20px;
+  background: var(--color-background-secondary);
+  border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg);
+  min-width: 540px;
+}
+.fnode { display: flex; flex-direction: column; align-items: center; gap: 5px; flex-shrink: 0; }
+.fbox {
+  padding: 8px 14px; border-radius: var(--border-radius-md);
+  font-size: 11px; font-weight: 500; text-align: center; white-space: nowrap;
+  border: 0.5px solid;
+}
+.fbox.app   { background: #E1F5EE; border-color: #1D9E75; color: #085041; }
+.fbox.cache { background: #EEEDFE; border-color: #534AB7; color: #26215C; }
+.fbox.db    { background: #FAEEDA; border-color: #BA7517; color: #633806; }
+.fbox.q     { background: #F1EFE8; border-color: #888780; color: #2C2C2A; }
+@media (prefers-color-scheme: dark) {
+  .fbox.app   { background: #085041; border-color: #5DCAA5; color: #9FE1CB; }
+  .fbox.cache { background: #26215C; border-color: #AFA9EC; color: #CECBF6; }
+  .fbox.db    { background: #633806; border-color: #FAC775; color: #FAC775; }
+  .fbox.q     { background: #2C2C2A; border-color: #888780; color: #D3D1C7; }
+}
+.fbox.hit { border-style: dashed; opacity: 0.7; }
+.flabel { font-size: 10px; color: var(--color-text-secondary); }
+
+.farrow { flex-shrink: 0; display: flex; flex-direction: column; align-items: center; gap: 3px; padding: 0 4px; }
+.fline { display: flex; align-items: center; gap: 2px; font-size: 10px; color: var(--color-text-secondary); white-space: nowrap; }
+.fline-bar { height: 1.5px; width: 36px; background: var(--color-border-tertiary); }
+
+.steps { display: flex; flex-direction: column; gap: 8px; margin-bottom: 20px; }
+.step {
+  display: flex; gap: 12px; align-items: flex-start; padding: 11px 14px;
+  border-radius: var(--border-radius-md); border: 0.5px solid var(--color-border-tertiary);
+  background: var(--color-background-primary);
+}
+.snum {
+  width: 22px; height: 22px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 500; flex-shrink: 0; margin-top: 1px;
+  background: var(--color-background-secondary); color: var(--color-text-secondary);
+}
+.snum.hit  { background: #E1F5EE; color: #085041; }
+.snum.miss { background: #FCEBEB; color: #501313; }
+.snum.write { background: #EEEDFE; color: #26215C; }
+@media (prefers-color-scheme: dark) {
+  .snum.hit  { background: #085041; color: #9FE1CB; }
+  .snum.miss { background: #501313; color: #F7C1C1; }
+  .snum.write { background: #26215C; color: #CECBF6; }
+}
+.stitle { font-size: 12px; font-weight: 500; margin-bottom: 2px; }
+.sdesc  { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; }
+
+pre {
+  background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-md); padding: 13px 15px;
+  font-family: var(--font-mono, monospace); font-size: 11px; line-height: 1.7;
+  overflow-x: auto; margin-bottom: 16px; color: var(--color-text-primary);
+}
+.prelabel {
+  font-family: var(--font-mono, monospace); font-size: 10px; color: var(--color-text-secondary);
+  background: var(--color-background-secondary); border: 0.5px solid var(--color-border-tertiary);
+  border-bottom: none; border-radius: var(--border-radius-md) var(--border-radius-md) 0 0;
+  padding: 5px 13px; display: inline-block;
+}
+pre.j { border-radius: 0 var(--border-radius-md) var(--border-radius-md) var(--border-radius-md); }
+.kw  { color: #185FA5; }
+.str { color: #3B6D11; }
+.cmt { color: var(--color-text-secondary); font-style: italic; }
+.fn  { color: #534AB7; }
+.num { color: #BA7517; }
+.an  { color: #3B6D11; }
+@media (prefers-color-scheme: dark) {
+  .kw  { color: #85B7EB; } .str { color: #97C459; }
+  .fn  { color: #AFA9EC; } .num { color: #FAC775; } .an { color: #C0DD97; }
+}
+
+.pros-cons { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+@media (max-width: 580px) { .pros-cons { grid-template-columns: 1fr; } }
+.pc-card { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg);
+  padding: 13px 15px; background: var(--color-background-primary); }
+.pc-head { font-size: 11px; font-weight: 500; margin-bottom: 8px; }
+.pc-ok  { color: #27500A; } .pc-bad { color: #791F1F; }
+@media (prefers-color-scheme: dark) { .pc-ok { color: #C0DD97; } .pc-bad { color: #F7C1C1; } }
+.pc-item { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5;
+  padding: 3px 0; display: flex; gap: 6px; }
+.pc-dot { flex-shrink: 0; margin-top: 3px; }
+
+.divider { border: none; border-top: 0.5px solid var(--color-border-tertiary); margin: 18px 0; }
+
+.compare-wrap { overflow-x: auto; }
+.compare { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 600px; }
+.compare th { font-size: 11px; font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--color-text-secondary); padding: 8px 12px;
+  border-bottom: 1px solid var(--color-border-tertiary); text-align: left; }
+.compare td { padding: 10px 12px; border-bottom: 0.5px solid var(--color-border-tertiary);
+  vertical-align: top; line-height: 1.5; color: var(--color-text-secondary); }
+.compare td:first-child { color: var(--color-text-primary); font-weight: 500; }
+.compare tr:last-child td { border-bottom: none; }
+.compare tr:hover td { background: var(--color-background-secondary); }
+
+.badge {
+  display: inline-block; font-size: 10px; font-weight: 500; padding: 2px 7px;
+  border-radius: var(--border-radius-md); margin: 1px 2px 1px 0; white-space: nowrap;
+}
+.bg { background: #E1F5EE; color: #085041; }
+.bp { background: #EEEDFE; color: #26215C; }
+.bw { background: #FAEEDA; color: #633806; }
+.br { background: #FCEBEB; color: #791F1F; }
+@media (prefers-color-scheme: dark) {
+  .bg { background: #085041; color: #9FE1CB; }
+  .bp { background: #26215C; color: #CECBF6; }
+  .bw { background: #633806; color: #FAC775; }
+  .br { background: #501313; color: #F7C1C1; }
+}
+</style>
+
+<div>
+<div class="tabs">
+  <button class="tab active" onclick="sw(0,this)">Cache-aside</button>
+  <button class="tab" onclick="sw(1,this)">Write-through</button>
+  <button class="tab" onclick="sw(2,this)">Write-behind</button>
+  <button class="tab" onclick="sw(3,this)">Read-through</button>
+  <button class="tab" onclick="sw(4,this)">Spring @Cacheable</button>
+  <button class="tab" onclick="sw(5,this)">Hibernate L2</button>
+  <button class="tab" onclick="sw(6,this)">Comparison</button>
+</div>
+
+<!-- ═══ 0: CACHE-ASIDE ═══ -->
+<div class="panel active" id="p0">
+  <div class="info-bar"><strong>Cache-aside (Lazy loading)</strong> — The application manages the cache itself. It always checks the cache first. On a miss it loads from DB and populates the cache. The cache never holds data that hasn't been requested at least once.</div>
+  <div class="lbl">Read path</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">App</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">1. check cache</div></div>
+    <div class="fnode"><div class="fbox cache">Cache (Redis)</div><div class="flabel">MISS → null</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">2. read DB</div></div>
+    <div class="fnode"><div class="fbox db">Database</div><div class="flabel">returns data</div></div>
+    <div class="farrow"><div class="fline">◀<div class="fline-bar"></div></div><div class="fline">3. populate cache</div></div>
+    <div class="fnode"><div class="fbox cache hit">Cache (Redis)</div><div class="flabel">SET key, ttl</div></div>
+  </div></div>
+  <div class="lbl">Step by step</div>
+  <div class="steps">
+    <div class="step"><div class="snum">1</div><div><div class="stitle">App checks cache — GET key</div><div class="sdesc">Before any DB call, app does <code>cache.get(key)</code>. Returns immediately if found.</div></div></div>
+    <div class="step"><div class="snum miss">M</div><div><div class="stitle">Cache miss — key not found or expired</div><div class="sdesc">On null response, app falls through to the real data source (DB / external service).</div></div></div>
+    <div class="step"><div class="snum">3</div><div><div class="stitle">App reads DB, gets the data</div><div class="sdesc">Normal repository/SQL call. This is the slow path (~100–500ms).</div></div></div>
+    <div class="step"><div class="snum write">4</div><div><div class="stitle">App writes result to cache — SET key value EX ttl</div><div class="sdesc">Result is now in cache. All subsequent reads for this key hit cache until TTL expires.</div></div></div>
+    <div class="step"><div class="snum hit">H</div><div><div class="stitle">Next read — cache hit (&lt;5ms)</div><div class="sdesc">Key found; DB is never called. All reads until TTL expiry are served from cache.</div></div></div>
+  </div>
+  <div class="prelabel">Java — manual cache-aside with Redis</div>
+  <pre class="j"><span class="kw">public</span> Product <span class="fn">getProduct</span>(Long id) {
+  String key = <span class="str">"product:"</span> + id;
+
+  <span class="cmt">// 1. Check cache first</span>
+  Product cached = redisTemplate.opsForValue().<span class="fn">get</span>(key);
+  <span class="kw">if</span> (cached != <span class="kw">null</span>) <span class="kw">return</span> cached;  <span class="cmt">// cache HIT → return instantly</span>
+
+  <span class="cmt">// 2. Cache MISS → load from DB</span>
+  Product product = productRepo.<span class="fn">findById</span>(id)
+      .<span class="fn">orElseThrow</span>(NotFoundException::<span class="kw">new</span>);
+
+  <span class="cmt">// 3. Populate cache with TTL</span>
+  redisTemplate.opsForValue().<span class="fn">set</span>(key, product, Duration.<span class="fn">ofMinutes</span>(<span class="num">10</span>));
+  <span class="kw">return</span> product;
+}
+
+<span class="cmt">// Invalidate on update — caller is responsible</span>
+<span class="kw">public</span> Product <span class="fn">updateProduct</span>(Product p) {
+  Product saved = productRepo.<span class="fn">save</span>(p);
+  redisTemplate.<span class="fn">delete</span>(<span class="str">"product:"</span> + p.<span class="fn">getId</span>());  <span class="cmt">// evict stale entry</span>
+  <span class="kw">return</span> saved;
+}</pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Cache only holds what was actually requested — no wasted memory</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Cache failure doesn't break reads — app falls back to DB gracefully</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Most flexible — works with any data source</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Cache miss penalty — first read is always slow</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Cache stampede: many threads miss simultaneously and all hit DB</div>
+      <div class="pc-item"><span class="pc-dot">–</span>App code must manually manage eviction on writes</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 1: WRITE-THROUGH ═══ -->
+<div class="panel" id="p1">
+  <div class="info-bar"><strong>Write-through</strong> — Every write goes to the cache AND the database synchronously, in the same operation. Cache is always consistent with DB. Reads always hit the cache.</div>
+  <div class="lbl">Write path</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">App</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">1. write</div></div>
+    <div class="fnode"><div class="fbox cache">Cache (Redis)</div><div class="flabel">SET immediately</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">2. write (sync)</div></div>
+    <div class="fnode"><div class="fbox db">Database</div><div class="flabel">persisted</div></div>
+    <div class="farrow"><div class="fline">◀<div class="fline-bar"></div></div><div class="fline">3. confirm</div></div>
+    <div class="fnode"><div class="fbox app">App</div><div class="flabel">returns result</div></div>
+  </div></div>
+  <div class="lbl">Step by step</div>
+  <div class="steps">
+    <div class="step"><div class="snum write">1</div><div><div class="stitle">App writes to cache first (or simultaneously)</div><div class="sdesc">Cache is updated before the DB call returns. Cache is never stale.</div></div></div>
+    <div class="step"><div class="snum write">2</div><div><div class="stitle">App writes to DB synchronously</div><div class="sdesc">Both writes happen in the same request/transaction. Caller waits for both to complete.</div></div></div>
+    <div class="step"><div class="snum hit">3</div><div><div class="stitle">All subsequent reads hit cache</div><div class="sdesc">No cold-start miss problem. Cache is pre-warmed on every write. Read path is always fast.</div></div></div>
+  </div>
+  <div class="prelabel">Java — Spring @CachePut (write-through)</div>
+  <pre class="j"><span class="cmt">// @CachePut: ALWAYS executes the method AND updates the cache</span>
+<span class="cmt">// Unlike @Cacheable, it never skips the method call</span>
+<span class="an">@CachePut</span>(value = <span class="str">"products"</span>, key = <span class="str">"#product.id"</span>)
+<span class="kw">public</span> Product <span class="fn">save</span>(Product product) {
+  <span class="kw">return</span> productRepo.<span class="fn">save</span>(product);
+  <span class="cmt">// return value is what gets stored in cache</span>
+  <span class="cmt">// cache key = product.id, value = saved Product</span>
+}
+
+<span class="cmt">// Read — always a cache hit (data was written through)</span>
+<span class="an">@Cacheable</span>(value = <span class="str">"products"</span>, key = <span class="str">"#id"</span>)
+<span class="kw">public</span> Product <span class="fn">findById</span>(Long id) {
+  <span class="kw">return</span> productRepo.<span class="fn">findById</span>(id).<span class="fn">orElseThrow</span>();
+  <span class="cmt">// DB only hit on very first read before any write</span>
+}
+
+<span class="cmt">// Combined: save + immediately readable from cache</span>
+<span class="kw">public void</span> <span class="fn">demo</span>() {
+  Product p = <span class="fn">save</span>(newProduct);   <span class="cmt">// writes DB + cache</span>
+  Product q = <span class="fn">findById</span>(p.<span class="fn">getId</span>()); <span class="cmt">// cache HIT — no DB call</span>
+}</pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Cache always consistent with DB — no stale reads</div>
+      <div class="pc-item"><span class="pc-dot">+</span>No cold-start penalty — reads always hit the cache</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Simple read path — always read from cache</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Write latency doubles — must wait for both cache and DB</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Cache bloat — data that's written but never read still occupies cache</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Not suitable for high write-frequency workloads (counters, events)</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 2: WRITE-BEHIND ═══ -->
+<div class="panel" id="p2">
+  <div class="info-bar"><strong>Write-behind (Write-back)</strong> — Write to cache only; the DB write is deferred and done asynchronously in the background. The fastest write pattern — caller returns immediately after cache is updated.</div>
+  <div class="lbl">Write path</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">App</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">1. write cache</div></div>
+    <div class="fnode"><div class="fbox cache">Cache (Redis)</div><div class="flabel">returns instantly</div></div>
+    <div class="farrow"><div class="fline">◀<div class="fline-bar"></div></div><div class="fline">returns to caller</div></div>
+    <div class="fnode"><div class="fbox app">App (returns)</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">async (later)</div></div>
+    <div class="fnode"><div class="fbox db">Database</div><div class="flabel">flushed async</div></div>
+  </div></div>
+  <div class="lbl">Step by step</div>
+  <div class="steps">
+    <div class="step"><div class="snum write">1</div><div><div class="stitle">App writes to cache only — returns instantly</div><div class="sdesc">No DB call on the hot path. Response time is sub-millisecond. High throughput.</div></div></div>
+    <div class="step"><div class="snum">2</div><div><div class="stitle">Write is queued (dirty buffer / Redis list)</div><div class="sdesc">The cache marks the entry as "dirty" — needs to be flushed to DB. Often implemented as a Redis list or in-memory queue.</div></div></div>
+    <div class="step"><div class="snum">3</div><div><div class="stitle">Background thread flushes to DB in batches</div><div class="sdesc">A scheduled job or event loop drains the queue and writes to DB. Can batch 100s of writes into one SQL statement (huge DB load reduction).</div></div></div>
+  </div>
+  <div class="prelabel">Java — write-behind with Redis list + @Scheduled flush</div>
+  <pre class="j"><span class="an">@Service</span>
+<span class="kw">public class</span> WriteBehindProductService {
+
+  <span class="kw">private static final</span> String QUEUE_KEY = <span class="str">"writequeue:products"</span>;
+
+  <span class="cmt">// Write to cache + enqueue — returns instantly, no DB call</span>
+  <span class="kw">public</span> Product <span class="fn">save</span>(Product product) {
+    redisTemplate.opsForValue().<span class="fn">set</span>(
+      <span class="str">"product:"</span> + product.<span class="fn">getId</span>(), product, Duration.<span class="fn">ofHours</span>(<span class="num">1</span>));
+
+    <span class="cmt">// Enqueue ID for async DB flush</span>
+    redisTemplate.opsForList().<span class="fn">rightPush</span>(QUEUE_KEY, product.<span class="fn">getId</span>());
+    <span class="kw">return</span> product;   <span class="cmt">// returns immediately — DB not touched yet</span>
+  }
+
+  <span class="cmt">// Background flush every 5 seconds — drains queue, batch-writes to DB</span>
+  <span class="an">@Scheduled</span>(fixedDelay = <span class="num">5000</span>)
+  <span class="kw">public void</span> <span class="fn">flushToDB</span>() {
+    List&lt;Long&gt; ids = <span class="kw">new</span> ArrayList&lt;&gt;();
+    Long id;
+    <span class="kw">while</span> ((id = redisTemplate.opsForList().<span class="fn">leftPop</span>(QUEUE_KEY)) != <span class="kw">null</span>) {
+      ids.<span class="fn">add</span>(id);
+    }
+    <span class="kw">if</span> (ids.<span class="fn">isEmpty</span>()) <span class="kw">return</span>;
+
+    <span class="cmt">// Bulk fetch from cache, batch insert/update DB</span>
+    List&lt;Product&gt; toSave = ids.<span class="fn">stream</span>()
+      .<span class="fn">map</span>(i -> redisTemplate.opsForValue().<span class="fn">get</span>(<span class="str">"product:"</span> + i))
+      .<span class="fn">filter</span>(Objects::nonNull)
+      .<span class="fn">collect</span>(Collectors.<span class="fn">toList</span>());
+    productRepo.<span class="fn">saveAll</span>(toSave);  <span class="cmt">// one batch SQL call</span>
+  }
+}</pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Ultra-low write latency — fastest possible write path</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Batch DB writes reduce DB load dramatically</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Ideal for high-frequency writes: analytics events, view counters, session data</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Data loss risk — if cache crashes before flush, writes in queue are lost</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Eventual consistency only — DB is always behind cache by flush interval</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Complex failure handling and ordering guarantees</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 3: READ-THROUGH ═══ -->
+<div class="panel" id="p3">
+  <div class="info-bar"><strong>Read-through</strong> — The cache layer itself loads data from DB on a miss. The application only ever talks to the cache — it never calls the DB directly. The cache acts as a transparent proxy.</div>
+  <div class="lbl">Read path (cache miss)</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">App</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">1. read(key)</div></div>
+    <div class="fnode"><div class="fbox cache">Cache layer</div><div class="flabel">MISS — fetches itself</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">2. load from DB</div></div>
+    <div class="fnode"><div class="fbox db">Database</div><div class="flabel">returns row</div></div>
+    <div class="farrow"><div class="fline">◀<div class="fline-bar"></div></div><div class="fline">3. store + return</div></div>
+    <div class="fnode"><div class="fbox app">App</div><div class="flabel">gets data</div></div>
+  </div></div>
+  <div class="lbl">Step by step</div>
+  <div class="steps">
+    <div class="step"><div class="snum">1</div><div><div class="stitle">App calls cache.get(key) — only ever talks to cache</div><div class="sdesc">App has no reference to the DB. All data access goes through the cache abstraction.</div></div></div>
+    <div class="step"><div class="snum miss">M</div><div><div class="stitle">Cache miss — cache calls its configured loader</div><div class="sdesc">Cache provider invokes a <code>CacheLoader</code> / <code>loader function</code> that you registered at startup. The cache handles the DB call internally.</div></div></div>
+    <div class="step"><div class="snum write">3</div><div><div class="stitle">Cache stores result, returns to app</div><div class="sdesc">From the app's perspective it's a single synchronous call. The miss/load/store is invisible.</div></div></div>
+    <div class="step"><div class="snum hit">H</div><div><div class="stitle">Next read — cache hit, loader never invoked</div><div class="sdesc">Subsequent reads for the same key return instantly. Loader only called again after TTL expiry or explicit eviction.</div></div></div>
+  </div>
+  <div class="prelabel">Java — Caffeine LoadingCache (read-through)</div>
+  <pre class="j"><span class="cmt">// LoadingCache: on miss, Caffeine calls the loader automatically</span>
+<span class="cmt">// App never calls productRepo directly</span>
+<span class="an">@Bean</span>
+<span class="kw">public</span> LoadingCache&lt;Long, Product&gt; <span class="fn">productCache</span>() {
+  <span class="kw">return</span> Caffeine.<span class="fn">newBuilder</span>()
+    .<span class="fn">expireAfterWrite</span>(<span class="num">10</span>, TimeUnit.MINUTES)
+    .<span class="fn">maximumSize</span>(<span class="num">10_000</span>)
+    .<span class="fn">build</span>(id -> productRepo.<span class="fn">findById</span>(id)  <span class="cmt">// ← the loader</span>
+        .<span class="fn">orElseThrow</span>(NotFoundException::<span class="kw">new</span>));
+}
+
+<span class="cmt">// App service — only calls cache, never DB directly</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> ProductService {
+  <span class="an">@Autowired</span> LoadingCache&lt;Long, Product&gt; productCache;
+
+  <span class="kw">public</span> Product <span class="fn">get</span>(Long id) {
+    <span class="kw">return</span> productCache.<span class="fn">get</span>(id);  <span class="cmt">// miss? loader fires automatically</span>
+  }
+
+  <span class="cmt">// Async read-through variant (non-blocking)</span>
+  <span class="kw">public</span> CompletableFuture&lt;Product&gt; <span class="fn">getAsync</span>(Long id) {
+    AsyncLoadingCache&lt;Long, Product&gt; asyncCache = Caffeine.<span class="fn">newBuilder</span>()
+      .<span class="fn">buildAsync</span>(k -> productRepo.<span class="fn">findByIdAsync</span>(k));
+    <span class="kw">return</span> asyncCache.<span class="fn">get</span>(id);
+  }
+}</pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>App code is clean — no if/else cache check logic anywhere</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Cache manages its own population — no risk of forgetting to populate</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Loader deduplication — concurrent misses trigger one DB call, not N</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Cache provider must know how to load data (tightly coupled)</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Harder to test — cache and loader are bundled together</div>
+      <div class="pc-item"><span class="pc-dot">–</span>First request still has full miss latency</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 4: SPRING @CACHEABLE ═══ -->
+<div class="panel" id="p4">
+  <div class="info-bar"><strong>Spring @Cacheable</strong> — A declarative abstraction over cache-aside. Spring AOP intercepts the annotated method, checks the backing store (Redis, Caffeine, etc.) first, and only invokes the actual method on a cache miss. The backing store is swappable via config.</div>
+  <div class="lbl">How Spring AOP intercepts the method</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">Caller</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">invoke method</div></div>
+    <div class="fnode"><div class="fbox cache">Spring AOP Proxy</div><div class="flabel">intercepts call</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">check store</div></div>
+    <div class="fnode"><div class="fbox q">Cache Store</div><div class="flabel">Redis / Caffeine</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">miss only</div></div>
+    <div class="fnode"><div class="fbox db">Real method (DB)</div><div class="flabel">invoked on miss</div></div>
+  </div></div>
+  <div class="lbl">All four annotations explained</div>
+  <div class="steps">
+    <div class="step"><div class="snum hit">R</div><div><div class="stitle">@Cacheable — read</div><div class="sdesc">Cache-aside for reads. Checks cache first; executes method only on miss. The return value is stored in cache keyed by the SpEL <code>key</code> expression.</div></div></div>
+    <div class="step"><div class="snum write">W</div><div><div class="stitle">@CachePut — write-through</div><div class="sdesc">Always executes the method AND updates the cache. Used on save/update. The return value overwrites whatever was in cache for that key.</div></div></div>
+    <div class="step"><div class="snum miss">E</div><div><div class="stitle">@CacheEvict — invalidate</div><div class="sdesc">Removes a key (or all entries with <code>allEntries=true</code>) after the method runs. Used on delete or batch-update operations.</div></div></div>
+    <div class="step"><div class="snum">C</div><div><div class="stitle">@Caching — combine multiple operations</div><div class="sdesc">Groups multiple cache annotations on one method. E.g. evict one cache and put into another in the same call.</div></div></div>
+  </div>
+  <div class="prelabel">Spring Boot — all annotations + Redis TTL config</div>
+  <pre class="j"><span class="cmt">// ── Enable caching ──────────────────────────────────────────</span>
+<span class="an">@SpringBootApplication</span>
+<span class="an">@EnableCaching</span>
+<span class="kw">public class</span> App {}
+
+<span class="cmt">// ── Configure Redis backing store with per-cache TTL ────────</span>
+<span class="an">@Bean</span>
+<span class="kw">public</span> CacheManager <span class="fn">cacheManager</span>(RedisConnectionFactory cf) {
+  Map&lt;String, RedisCacheConfiguration&gt; configs = Map.<span class="fn">of</span>(
+    <span class="str">"products"</span>, RedisCacheConfiguration.defaultCacheConfig()
+        .<span class="fn">entryTtl</span>(Duration.<span class="fn">ofMinutes</span>(<span class="num">10</span>)),
+    <span class="str">"inventory"</span>, RedisCacheConfiguration.defaultCacheConfig()
+        .<span class="fn">entryTtl</span>(Duration.<span class="fn">ofSeconds</span>(<span class="num">30</span>))
+  );
+  <span class="kw">return</span> RedisCacheManager.builder(cf)
+      .withInitialCacheConfigurations(configs).build();
+}
+
+<span class="cmt">// ── Service with all four annotations ──────────────────────</span>
+<span class="an">@Service</span>
+<span class="kw">public class</span> ProductService {
+
+  <span class="an">@Cacheable</span>(value=<span class="str">"products"</span>, key=<span class="str">"#id"</span>,
+             unless=<span class="str">"#result == null"</span>)
+  <span class="kw">public</span> Product <span class="fn">findById</span>(Long id) {
+    <span class="kw">return</span> repo.<span class="fn">findById</span>(id).<span class="fn">orElse</span>(<span class="kw">null</span>);
+  }
+
+  <span class="an">@CachePut</span>(value=<span class="str">"products"</span>, key=<span class="str">"#result.id"</span>)
+  <span class="kw">public</span> Product <span class="fn">save</span>(Product p) { <span class="kw">return</span> repo.<span class="fn">save</span>(p); }
+
+  <span class="an">@CacheEvict</span>(value=<span class="str">"products"</span>, key=<span class="str">"#id"</span>)
+  <span class="kw">public void</span> <span class="fn">delete</span>(Long id)    { repo.<span class="fn">deleteById</span>(id); }
+
+  <span class="cmt">// Evict entire cache (e.g. after bulk import)</span>
+  <span class="an">@CacheEvict</span>(value=<span class="str">"products"</span>, allEntries=<span class="kw">true</span>)
+  <span class="kw">public void</span> <span class="fn">importAll</span>(List&lt;Product&gt; list) { repo.<span class="fn">saveAll</span>(list); }
+
+  <span class="cmt">// @Caching: evict two caches at once</span>
+  <span class="an">@Caching</span>(evict = {
+    <span class="an">@CacheEvict</span>(value=<span class="str">"products"</span>, key=<span class="str">"#p.id"</span>),
+    <span class="an">@CacheEvict</span>(value=<span class="str">"inventory"</span>, key=<span class="str">"#p.id"</span>)
+  })
+  <span class="kw">public void</span> <span class="fn">deleteWithStock</span>(Product p) { ... }
+}</pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Zero boilerplate — three annotations replace 20 lines of if/else</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Backing store is swappable (Redis → Caffeine → EhCache) via config only</div>
+      <div class="pc-item"><span class="pc-dot">+</span>SpEL key expressions allow fine-grained cache key control</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Only works via Spring proxy — self-calls within same class bypass cache</div>
+      <div class="pc-item"><span class="pc-dot">–</span>No built-in stampede protection — must add manually with locks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Default key collisions possible if not using SpEL explicitly</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 5: HIBERNATE L2 ═══ -->
+<div class="panel" id="p5">
+  <div class="info-bar"><strong>Hibernate 2nd-level cache</strong> — A cache that lives between the ORM and the DB. It is shared across all Hibernate sessions in the same JVM (or cluster). JPA entities and JPQL query results are cached at the ORM level — no manual Redis calls needed.</div>
+  <div class="lbl">Cache levels in Hibernate</div>
+  <div class="flow-wrap"><div class="flow">
+    <div class="fnode"><div class="fbox app">Session (L1)</div><div class="flabel">per-request, always on</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">miss</div></div>
+    <div class="fnode"><div class="fbox cache">2nd-Level Cache</div><div class="flabel">EhCache / Hazelcast</div></div>
+    <div class="farrow"><div class="fline"><div class="fline-bar"></div>▶</div><div class="fline">miss</div></div>
+    <div class="fnode"><div class="fbox db">Database</div><div class="flabel">source of truth</div></div>
+  </div></div>
+  <div class="lbl">Step by step</div>
+  <div class="steps">
+    <div class="step"><div class="snum hit">L1</div><div><div class="stitle">Session (L1) cache — always on, per-request</div><div class="sdesc">Every Hibernate Session has its own L1 cache. Entities loaded within the same session/transaction are never re-fetched from DB. Cleared at session close.</div></div></div>
+    <div class="step"><div class="snum write">L2</div><div><div class="stitle">2nd-level cache — opt-in, shared across sessions</div><div class="sdesc">Annotate an entity with <code>@Cache</code>. Hibernate stores the entity by ID in EhCache/Hazelcast. All sessions share it. Survives request boundaries.</div></div></div>
+    <div class="step"><div class="snum">Q</div><div><div class="stitle">Query cache — caches JPQL/HQL result sets</div><div class="sdesc">Cache the list of IDs returned by a query. Subsequent identical queries return the same IDs, then hit L2 for each entity. Requires both <code>@QueryHints</code> and 2LC enabled.</div></div></div>
+  </div>
+  <div class="prelabel">Java — Hibernate 2nd-level cache with EhCache</div>
+  <pre class="j"><span class="cmt">// application.yml</span>
+spring.jpa.properties.hibernate.cache.use_second_level_cache: <span class="kw">true</span>
+spring.jpa.properties.hibernate.cache.use_query_cache: <span class="kw">true</span>
+spring.jpa.properties.hibernate.cache.region.factory_class:
+  org.hibernate.cache.jcache.JCacheRegionFactory
+
+<span class="cmt">// pom.xml dependency</span>
+&lt;dependency&gt;
+  &lt;groupId&gt;org.hibernate.orm&lt;/groupId&gt;
+  &lt;artifactId&gt;hibernate-jcache&lt;/artifactId&gt;
+&lt;/dependency&gt;
+&lt;dependency&gt;
+  &lt;groupId&gt;org.ehcache&lt;/groupId&gt;
+  &lt;artifactId&gt;ehcache&lt;/artifactId&gt;
+&lt;/dependency&gt;
+
+<span class="cmt">// Entity — opt in with @Cache</span>
+<span class="an">@Entity</span>
+<span class="an">@Cache</span>(usage = CacheConcurrencyStrategy.READ_WRITE)  <span class="cmt">// shared cache region</span>
+<span class="kw">public class</span> Product {
+  <span class="an">@Id</span> <span class="kw">private</span> Long id;
+
+  <span class="cmt">// Cache collection associations too</span>
+  <span class="an">@OneToMany</span>(mappedBy = <span class="str">"product"</span>)
+  <span class="an">@Cache</span>(usage = CacheConcurrencyStrategy.READ_WRITE)
+  <span class="kw">private</span> List&lt;Review&gt; reviews;
+}
+
+<span class="cmt">// Cacheable JPQL query — caches result IDs</span>
+<span class="an">@Repository</span>
+<span class="kw">public interface</span> ProductRepo <span class="kw">extends</span> JpaRepository&lt;Product, Long&gt; {
+
+  <span class="an">@QueryHints</span>(<span class="an">@QueryHint</span>(
+    name = <span class="str">"org.hibernate.cacheable"</span>, value = <span class="str">"true"</span>))
+  List&lt;Product&gt; <span class="fn">findByCategory</span>(String category);
+}
+
+<span class="cmt">// Concurrency strategies</span>
+<span class="cmt">// READ_ONLY    — immutable data (best performance)</span>
+<span class="cmt">// NONSTRICT_RW — rarely updated, stale reads acceptable</span>
+<span class="cmt">// READ_WRITE   — updated data, uses soft locks (most common)</span>
+<span class="cmt">// TRANSACTIONAL— full transactional cache (JTA required)</span></pre>
+  <div class="pros-cons">
+    <div class="pc-card"><div class="pc-head pc-ok">Advantages</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Transparent — no explicit cache.get/set anywhere in app code</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Automatic invalidation on entity updates within the same app</div>
+      <div class="pc-item"><span class="pc-dot">+</span>Works at the ORM level — caches entity graphs and associations</div>
+    </div>
+    <div class="pc-card"><div class="pc-head pc-bad">Drawbacks</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Clustered cache required in multi-node setups (Hazelcast/Infinispan)</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Stale if DB is modified by non-Hibernate code (native SQL, other services)</div>
+      <div class="pc-item"><span class="pc-dot">–</span>Query cache + L2 interaction is subtle — easy to misconfigure</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ 6: COMPARISON ═══ -->
+<div class="panel" id="p6">
+  <div class="lbl">Side-by-side comparison</div>
+  <div class="compare-wrap">
+  <table class="compare">
+    <thead><tr><th>Pattern</th><th>Who manages cache?</th><th>Read latency</th><th>Write latency</th><th>Consistency</th><th>Data loss risk</th><th>Best use case</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Cache-aside</td>
+        <td>Application code</td>
+        <td><span class="badge bg">Fast on hit</span></td>
+        <td><span class="badge bg">Fast (DB only)</span></td>
+        <td><span class="badge bw">Eventual (TTL)</span></td>
+        <td><span class="badge bg">None</span></td>
+        <td>Read-heavy; mixed workloads; default choice</td>
+      </tr>
+      <tr>
+        <td>Write-through</td>
+        <td>Application code</td>
+        <td><span class="badge bg">Always fast</span></td>
+        <td><span class="badge bw">Slower (2 writes)</span></td>
+        <td><span class="badge bg">Strong</span></td>
+        <td><span class="badge bg">None</span></td>
+        <td>Read-heavy data written infrequently</td>
+      </tr>
+      <tr>
+        <td>Write-behind</td>
+        <td>Application code</td>
+        <td><span class="badge bg">Always fast</span></td>
+        <td><span class="badge bg">Fastest</span></td>
+        <td><span class="badge br">Eventual only</span></td>
+        <td><span class="badge br">Yes (pre-flush)</span></td>
+        <td>Counters, events, session writes, analytics</td>
+      </tr>
+      <tr>
+        <td>Read-through</td>
+        <td>Cache provider</td>
+        <td><span class="badge bg">Fast on hit</span></td>
+        <td><span class="badge bg">Fast (DB only)</span></td>
+        <td><span class="badge bw">Eventual (TTL)</span></td>
+        <td><span class="badge bg">None</span></td>
+        <td>Clean app code; Caffeine LoadingCache</td>
+      </tr>
+      <tr>
+        <td>Spring @Cacheable</td>
+        <td>Spring AOP</td>
+        <td><span class="badge bg">Fast on hit</span></td>
+        <td><span class="badge bg">Normal</span></td>
+        <td><span class="badge bw">Eventual (TTL)</span></td>
+        <td><span class="badge bg">None</span></td>
+        <td>Any Spring service; zero boilerplate</td>
+      </tr>
+      <tr>
+        <td>Hibernate L2</td>
+        <td>ORM / Hibernate</td>
+        <td><span class="badge bg">Fast on hit</span></td>
+        <td><span class="badge bg">Normal</span></td>
+        <td><span class="badge bw">ORM-managed</span></td>
+        <td><span class="badge bg">None</span></td>
+        <td>Entity/association caching; JPA-heavy apps</td>
+      </tr>
+    </tbody>
+  </table>
+  </div>
+  <div style="height:16px;"></div>
+  <div class="lbl">When to use which</div>
+  <div class="steps">
+    <div class="step"><div class="snum">1</div><div><div class="stitle">Default choice → Spring @Cacheable (cache-aside under the hood)</div><div class="sdesc">For 90% of Spring Boot use cases. Annotate service methods, plug in Redis or Caffeine. No boilerplate, swappable backing store.</div></div></div>
+    <div class="step"><div class="snum">2</div><div><div class="stitle">Write-heavy, strong consistency needed → Write-through (@CachePut)</div><div class="sdesc">Use alongside @Cacheable for the read path. @CachePut ensures every save also updates the cache immediately.</div></div></div>
+    <div class="step"><div class="snum">3</div><div><div class="stitle">Ultra-high write throughput, eventual consistency OK → Write-behind</div><div class="sdesc">View counters, like counts, event ingestion, real-time metrics. Accept data loss risk on crash; ensure Redis persistence (AOF) is on.</div></div></div>
+    <div class="step"><div class="snum">4</div><div><div class="stitle">Entity + association caching in JPA apps → Hibernate L2</div><div class="sdesc">When you want ORM-level caching without writing Redis calls. Works best for reference data (categories, config, lookup tables) that rarely changes.</div></div></div>
+    <div class="step"><div class="snum">5</div><div><div class="stitle">Multi-pattern: combine them</div><div class="sdesc">Typical production stack: Caffeine L1 (in-process, ~100ns) + Redis L2 (distributed, ~1ms) + Hibernate L2 (entity graphs) + @Cacheable as the glue. Each layer catches a different type of miss.</div></div></div>
+  </div>
+</div>
+
+</div>
+
+<script>
+const panels = document.querySelectorAll('.panel');
+const tabs = document.querySelectorAll('.tab');
+function sw(i, btn) {
+  panels.forEach(p => p.classList.remove('active'));
+  tabs.forEach(t => t.classList.remove('active'));
+  panels[i].classList.add('active');
+  btn.classList.add('active');
+}
+</script>
